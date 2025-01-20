@@ -1,9 +1,10 @@
-# PHP Backdoor Scanner
+# PHP Backdoor Scanner with VirusTotal Integration
 
-This project is a Python-based script designed to scan directories for potential backdoor files. It analyzes PHP and other files for suspicious patterns, obfuscation, and other indicators of malicious code. The script provides detailed scanning reports and includes features like real-time progress updates, filtering by file extensions, and report saving.
+This project is a Python-based script designed to scan directories for potential backdoor files. It analyzes PHP and other files for suspicious patterns, obfuscation, and other indicators of malicious code. The script integrates with **VirusTotal** to provide additional security checks for suspicious files.
 
 ## Features
 - **Pattern Detection:** Identifies common backdoor patterns like `eval()`, `base64_decode()`, dynamic variables, and obfuscated strings.
+- **Integration with VirusTotal:** Automatically submits suspicious files to VirusTotal for further analysis.
 - **Real-Time Progress:** Displays the current file being scanned, percentage completion, and estimated time remaining.
 - **Extension Filtering:** Allows scanning specific file extensions (e.g., `php`, `py`).
 - **Detailed Reports:** Provides comprehensive details about suspicious files, including patterns found, creation/modification timestamps, file size, and more.
@@ -12,20 +13,24 @@ This project is a Python-based script designed to scan directories for potential
 ## How It Works
 1. **Pattern Matching:** The script uses regular expressions to match suspicious patterns in file content.
 2. **Recursive Scanning:** It traverses the specified directory and all its subdirectories to find files matching the specified extensions.
-3. **Progress Tracking:** Real-time updates on scanning progress, including file count and estimated time remaining.
-4. **Detailed Analysis:** Extracts metadata like creation time, modification time, and file size for each suspicious file.
-5. **Report Generation:** Optionally saves results to a text file for documentation and further investigation.
+3. **VirusTotal Integration:** Suspicious files are automatically submitted to VirusTotal for further analysis (requires an API key).
+4. **Progress Tracking:** Real-time updates on scanning progress, including file count and estimated time remaining.
+5. **Detailed Analysis:** Extracts metadata like creation time, modification time, and file size for each suspicious file.
+6. **Report Generation:** Optionally saves results to a text file for documentation and further investigation.
 
 ## Installation
 ### Prerequisites
-- Python 3.6+
-- Install required packages (if any):
-  ```bash
-  pip install -r requirements.txt
-  ```
+1. **Python 3.6+**
+2. Install required packages:
+   ```bash
+   pip install requests
+   ```
+
+### VirusTotal API Key
+Obtain your VirusTotal API key from [VirusTotal](https://www.virustotal.com/gui/join-us) and replace the `VIRUSTOTAL_API_KEY` in the script.
 
 ## Usage
-Run the script with the following command:
+Run the script with the following commands:
 
 ### Basic Scan
 Scan all files in a directory:
@@ -72,6 +77,7 @@ File: /var/www/backdoor.php
   Created Time: 2025-01-15 10:30:00
   Modified Time: 2025-01-19 15:45:00
   Size: 2345 bytes
+  VirusTotal Report: {...}
 ```
 
 ### Saved Report
@@ -86,6 +92,7 @@ File: /var/www/backdoor.php
   Created Time: 2025-01-15 10:30:00
   Modified Time: 2025-01-19 15:45:00
   Size: 2345 bytes
+  VirusTotal Report: {...}
 ```
 
 ## Advanced Features
@@ -96,6 +103,10 @@ The script detects various backdoor techniques, including:
 - **Obfuscation:** Hexadecimal (`\xNN`), base64 encoding, ROT13
 - **File Manipulation:** `fwrite()`, `file_put_contents()`
 - **Remote Code Inclusion:** URLs in `preg_replace`, `eval`
+
+### VirusTotal Integration
+- Suspicious files are submitted to VirusTotal for further analysis.
+- Reports from VirusTotal include additional security checks for uploaded files.
 
 ### Estimation and Progress
 - Displays real-time progress updates.
