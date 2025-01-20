@@ -2,7 +2,11 @@ import os
 import re
 import argparse
 import time
+import requests
 from datetime import datetime
+
+# VirusTotal API Key
+VIRUSTOTAL_API_KEY = "YOUR_VIRUSTOTAL_API_KEY"
 
 # Pola-pola umum untuk backdoor dan obfuscation
 SUSPICIOUS_PATTERNS = {
@@ -75,6 +79,7 @@ def scan_files(directory, extensions):
                                 "created_time": datetime.fromtimestamp(os.path.getctime(filepath)),
                                 "modified_time": datetime.fromtimestamp(os.path.getmtime(filepath)),
                                 "size_in_bytes": os.path.getsize(filepath),
+                                "virus_total": scan_with_virustotal(filepath),
                             }
                             suspicious_files.append(file_info)
 
@@ -92,6 +97,28 @@ def scan_files(directory, extensions):
     print()  # Pindah ke baris baru setelah scan selesai
     return suspicious_files
 
+# Fungsi untuk memindai file dengan VirusTotal
+def scan_with_virustotal(filepath):
+    if not VIRUSTOTAL_API_KEY:
+        print("VirusTotal API key not set. Skipping VirusTotal scan.")
+        return None
+
+    with open(filepath, "rb") as file:
+        try:
+            response = requests.post(
+                "https://www.virustotal.com/api/v3/files",
+                headers={"x-apikey": VIRUSTOTAL_API_KEY},
+                files={"file": file},
+            )
+            if response.status_code == 200:
+                return response.json()
+            else:
+                print(f"VirusTotal scan failed for {filepath}: {response.status_code}")
+                return None
+        except Exception as e:
+            print(f"Error scanning with VirusTotal: {e}")
+            return None
+
 # Fungsi untuk menyimpan laporan ke file
 def save_report(report_data, output_file):
     try:
@@ -104,15 +131,15 @@ def save_report(report_data, output_file):
                 f.write(f"  Extension: {file_info['extension']}\n")
                 f.write(f"  Created Time: {file_info['created_time']}\n")
                 f.write(f"  Modified Time: {file_info['modified_time']}\n")
-                f.write(f"  Size: {file_info['size_in_bytes']} bytes\n\n")
+                f.write(f"  Size: {file_info['size_in_bytes']} bytes\n")
+                f.write(f"  VirusTotal Report: {file_info['virus_total']}\n\n")
         print(f"\nReport saved to {output_file}")
     except Exception as e:
         print(f"Error saving report: {e}")
 
 # Main program
 def main():
-    # Parse argument dari command line
-    parser = argparse.ArgumentParser(description="Scan files for potential backdoors and save detailed reports.")
+    parser = argparse.ArgumentParser(description="Scan files for potential backdoors and check with VirusTotal.")
     parser.add_argument("-d", "--directory", required=True, help="Directory to scan")
     parser.add_argument("-x", "--extensions", nargs="*", default=[], help="File extensions to scan (e.g., php py). Default: all extensions.")
     parser.add_argument("-s", "--save", help="File to save the scan report")
@@ -127,10 +154,8 @@ def main():
     else:
         print("Scanning all file extensions.")
 
-    # Scan untuk pola mencurigakan
     suspicious_files = scan_files(directory_to_scan, extensions_to_scan)
 
-    # Laporan hasil scan
     if suspicious_files:
         print("\nSuspicious files found:")
         for file_info in suspicious_files:
@@ -140,10 +165,9 @@ def main():
             print(f"  Created Time: {file_info['created_time']}")
             print(f"  Modified Time: {file_info['modified_time']}")
             print(f"  Size: {file_info['size_in_bytes']} bytes")
-    else:
-        print("\nNo suspicious files found.")
+            if file_info['virus_total']:
+                print(f"  VirusTotal Report: {file_info['virus_total']}")
 
-    # Simpan laporan jika argumen -s diberikan
     if args.save:
         save_report(suspicious_files, args.save)
 
