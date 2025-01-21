@@ -1,137 +1,204 @@
-# PHP Backdoor Scanner
+# Suspicious File Scanner with VirusTotal Integration
 
-PHP Backdoor Scanner is a Python-based tool designed to detect suspicious patterns in PHP and other files, often indicative of backdoors or malicious activity. The tool also integrates with VirusTotal for an additional layer of threat analysis.
+## Overview
 
-## Features
-- Detects common backdoor patterns in PHP files.
-- Provides detailed insights including file metadata, suspicious patterns, and their locations in the file.
-- Integrates with VirusTotal to analyze files for known threats.
-- Outputs results in a structured and visually appealing table using `Rich`.
-- Saves scan results to a report file if specified.
+This project is a Python-based tool for scanning files in a specified directory for potential backdoors, obfuscation, or other malicious code patterns. The tool integrates with the VirusTotal API to analyze suspicious files for further security validation.
 
----
+### Features
 
-## Prerequisites
-Ensure the following are installed:
-- Python 3.7 or higher
-- `pip` (Python package manager)
+- Detects suspicious patterns in files using customizable regex patterns.
+- Scans all files or specific file types in a given directory.
+- Integrates with VirusTotal API to check suspicious files.
+- Saves scan results, including VirusTotal analysis, in a detailed JSON report.
+- Easy configuration using external JSON files for suspicious patterns.
 
----
+## Requirements
 
-## Installation
-1. Clone this repository or download the source code:
-   ```bash
-   git clone https://github.com/your-repo/php-backdoor-scanner.git
-   cd php-backdoor-scanner
-   ```
+### Dependencies
 
-2. Create a virtual environment (optional but recommended):
-   ```bash
-   python -m venv venv
-   source venv/bin/activate  # On Windows, use `venv\Scripts\activate`
-   ```
+- Python 3.7+
+- Required Python libraries:
+  - `requests`
+  - `rich`
+  - `argparse`
+  - `concurrent.futures`
 
-3. Install the dependencies:
-   ```bash
-   pip install -r requirements.txt
-   ```
+Install the required dependencies using pip:
 
----
-
-## Configuration
-### Environment Variables
-Create a `.env` file in the project directory with the following content:
-```plaintext
-# .env file
-VIRUSTOTAL_API_KEY=your_virustotal_api_key
-```
-Replace `your_virustotal_api_key` with a valid API key from [VirusTotal](https://www.virustotal.com).
-
----
-
-## Usage
-Run the scanner using the following command:
-```bash
-python scanner.py -d <directory_to_scan> [-x <extensions>] [-s <report_file>]
-```
-
-### Arguments:
-- `-d` or `--directory`: The directory to scan (required).
-- `-x` or `--extensions`: File extensions to scan (e.g., `php py`). If omitted, scans all extensions (optional).
-- `-s` or `--save`: File path to save the scan report (optional).
-
-### Examples:
-1. Scan a directory for all files:
-   ```bash
-   python scanner.py -d /path/to/scan
-   ```
-
-2. Scan only PHP files and save the report:
-   ```bash
-   python scanner.py -d /path/to/scan -x php -s report.txt
-   ```
-
----
-
-## Output
-The results will be displayed in a visually appealing table format, including:
-- File path
-- File extension
-- Created and modified times
-- File size
-- Detected patterns, including their types, descriptions, impacts, and line numbers
-
-If a report file is specified, the results will also be saved in plain text format.
-
----
-
-## Dependencies
-The tool requires the following Python libraries:
-- `rich`: For enhanced terminal output.
-- `python-dotenv`: For loading environment variables from the `.env` file.
-- `requests`: For interacting with the VirusTotal API.
-
-To install these dependencies, use:
 ```bash
 pip install -r requirements.txt
 ```
 
----
+### API Key
 
-## Development
-### Adding New Patterns
-You can extend the detection capability by adding new patterns to the `SUSPICIOUS_PATTERNS` dictionary in the script. Each pattern requires:
-- `pattern`: The regex to match.
-- `description`: A brief explanation of the pattern.
-- `impact`: The potential impact of the pattern.
+You need a VirusTotal API key to use the VirusTotal integration. Set it as an environment variable by creating a `.env` file in the root directory:
 
-### Example:
-```python
-"example_pattern": {
-    "pattern": r"example_regex",
-    "description": "Description of the pattern.",
-    "impact": "Impact of the pattern."
+**.env file example:**
+
+```
+VIRUSTOTAL_API_KEY=your_virustotal_api_key
+```
+
+Copy the provided `.env-sample` file as a starting point:
+
+```bash
+cp .env-sample .env
+```
+
+## Usage
+
+### 1. Directory Structure
+
+Ensure you have the following directory structure:
+
+```
+project/
+|-- .env  # Environment variables
+|-- .env-sample  # Example environment variables file
+|-- .gitignore  # Git ignore file
+|-- patterns.json  # JSON file containing suspicious patterns
+|-- README.md  # Documentation file
+|-- requirements.txt  # Python dependencies
+|-- scanner.py  # Main script
+```
+
+### 2. Run the Scanner
+
+Run the script with the following options:
+
+```bash
+python scanner.py -d /path/to/scan [options]
+```
+
+#### Command-line Arguments
+
+| Argument           | Description                                                                        |
+| ------------------ | ---------------------------------------------------------------------------------- |
+| `-d, --directory`  | The directory to scan (required).                                                  |
+| `-x, --extensions` | File extensions to scan (e.g., `php py`). Defaults to all extensions.              |
+| `--patterns`       | Path to the JSON file containing suspicious patterns. Defaults to `patterns.json`. |
+| `--virustotal`     | Enables VirusTotal integration for suspicious files.                               |
+| `--save`           | Path to save the JSON report.                                                      |
+
+#### Examples
+
+**Scan all files in a directory:**
+
+```bash
+python scanner.py -d /path/to/scan
+```
+
+**Scan only `.php` and `.py` files:**
+
+```bash
+python scanner.py -d /path/to/scan -x php py
+```
+
+**Enable VirusTotal checks and save the report:**
+
+```bash
+python scanner.py -d /path/to/scan --virustotal --save results.json
+```
+
+## Configuration
+
+### Suspicious Patterns (`patterns.json`)
+
+Suspicious patterns are stored in a separate JSON file (`patterns.json`). You can customize or add new patterns.
+
+**Example format:**
+
+```json
+{
+  "eval_execution": {
+    "pattern": "eval\\s*\\(",
+    "description": "Penggunaan eval dapat dieksploitasi untuk mengeksekusi kode arbitrer.",
+    "impact": "Eksekusi kode berbahaya."
+  },
+  "base64_decoding": {
+    "pattern": "base64_decode\\s*\\(",
+    "description": "Decode base64 sering digunakan untuk menyembunyikan kode.",
+    "impact": "Menyembunyikan kode berbahaya."
+  }
 }
 ```
 
----
+### VirusTotal Integration
+
+To enable VirusTotal integration:
+
+1. Obtain an API key from [VirusTotal](https://www.virustotal.com/).
+2. Add the API key to your `.env` file:
+   ```bash
+   VIRUSTOTAL_API_KEY=your_virustotal_api_key
+   ```
+
+## Output
+
+### Console Output
+
+The script provides a summary of suspicious files found, including:
+
+- File path
+- Detected patterns
+- Line numbers
+
+### JSON Report
+
+If `--save` is specified, the scan results are saved in a JSON file. The report includes:
+
+- File details (path, size, timestamps, etc.)
+- Detected patterns with descriptions and impacts
+- VirusTotal analysis (if enabled), including:
+  - Safety status (`is_safe`)
+  - Malicious detection count
+  - Link to VirusTotal analysis
+
+**Example Report:**
+
+```json
+[
+  {
+    "file_path": "/path/to/suspicious.php",
+    "extension": "php",
+    "created_time": "2025-01-21 10:15:30",
+    "modified_time": "2025-01-21 10:30:45",
+    "size_in_bytes": 2048,
+    "patterns_found": [
+      {
+        "type": "eval_execution",
+        "description": "Penggunaan eval dapat dieksploitasi untuk mengeksekusi kode arbitrer.",
+        "impact": "Eksekusi kode berbahaya.",
+        "line": 15
+      }
+    ],
+    "virustotal": {
+      "is_safe": false,
+      "malicious_count": 3,
+      "analysis_link": "https://www.virustotal.com/gui/file/<file_hash>"
+    }
+  }
+]
+```
+
+## Error Handling
+
+- If a file cannot be read, an error message will be logged.
+- If the VirusTotal API is unavailable or the API key is invalid, a corresponding error will be displayed.
+
+## Limitations
+
+- VirusTotal API requests are limited by your API key's quota.
+- The tool relies on regex patterns and may produce false positives or false negatives.
 
 ## Contributing
-Contributions are welcome! Feel free to fork the repository and submit pull requests for improvements or additional features.
 
----
+Feel free to contribute by:
+
+- Adding new suspicious patterns.
+- Improving the VirusTotal integration.
+- Enhancing performance and functionality.
 
 ## License
+
 This project is licensed under the MIT License. See the `LICENSE` file for details.
-
----
-
-## Acknowledgments
-- [VirusTotal](https://www.virustotal.com) for their comprehensive threat database.
-- [Rich](https://github.com/Textualize/rich) for providing an excellent library for terminal output.
-
----
-
-## Support
-For any issues or questions, please open an issue on the [GitHub repository](https://github.com/wicaksuu/backdoor-scaner).
-

@@ -1,0 +1,152 @@
+{
+  "eval_execution": {
+    "pattern": "eval\\s*\\(",
+    "description": "Penggunaan eval dapat dieksploitasi untuk mengeksekusi kode arbitrer.",
+    "impact": "Eksekusi kode berbahaya."
+  },
+  "assert_execution": {
+    "pattern": "assert\\s*\\(",
+    "description": "Assert dapat digunakan untuk menjalankan ekspresi PHP.",
+    "impact": "Eksekusi kode berbahaya."
+  },
+  "preg_replace_execution": {
+    "pattern": "preg_replace\\s*\\(.*?/e",
+    "description": "Penggunaan modifier 'e' pada preg_replace dapat digunakan untuk eksekusi kode.",
+    "impact": "Eksekusi kode berbahaya."
+  },
+  "create_function_execution": {
+    "pattern": "create_function\\s*\\(",
+    "description": "Fungsi create_function memungkinkan pembuatan kode secara dinamis.",
+    "impact": "Eksekusi kode berbahaya."
+  },
+  "system_execution": {
+    "pattern": "system\\s*\\(",
+    "description": "Fungsi system digunakan untuk menjalankan perintah shell.",
+    "impact": "Eksekusi perintah sistem berbahaya."
+  },
+  "exec_execution": {
+    "pattern": "exec\\s*\\(",
+    "description": "Fungsi exec digunakan untuk menjalankan perintah shell eksternal.",
+    "impact": "Eksekusi perintah sistem berbahaya."
+  },
+  "shell_exec_execution": {
+    "pattern": "shell_exec\\s*\\(",
+    "description": "Fungsi shell_exec digunakan untuk menjalankan perintah shell dan mengembalikan outputnya.",
+    "impact": "Eksekusi perintah sistem berbahaya."
+  },
+  "passthru_execution": {
+    "pattern": "passthru\\s*\\(",
+    "description": "Fungsi passthru digunakan untuk mengeksekusi perintah shell dan mengirimkan output secara langsung.",
+    "impact": "Eksekusi perintah sistem berbahaya."
+  },
+  "pcntl_exec_execution": {
+    "pattern": "pcntl_exec\\s*\\(",
+    "description": "Fungsi pcntl_exec digunakan untuk mengeksekusi program eksternal.",
+    "impact": "Eksekusi perintah sistem berbahaya."
+  },
+  "backtick_execution": {
+    "pattern": "`[^`]+`",
+    "description": "Penggunaan backtick memungkinkan eksekusi perintah shell.",
+    "impact": "Eksekusi perintah sistem berbahaya."
+  },
+  "base64_decoding": {
+    "pattern": "base64_decode\\s*\\(",
+    "description": "Decode base64 sering digunakan untuk menyembunyikan kode.",
+    "impact": "Menyembunyikan kode berbahaya."
+  },
+  "str_rot13_decoding": {
+    "pattern": "str_rot13\\s*\\(",
+    "description": "Fungsi str_rot13 dapat digunakan untuk menyembunyikan kode dengan enkripsi dasar.",
+    "impact": "Menyembunyikan kode berbahaya."
+  },
+  "gzinflate_decoding": {
+    "pattern": "gzinflate\\s*\\(",
+    "description": "Gzinflate digunakan untuk dekompresi data yang dapat menyembunyikan kode.",
+    "impact": "Menyembunyikan kode berbahaya."
+  },
+  "gzuncompress_decoding": {
+    "pattern": "gzuncompress\\s*\\(",
+    "description": "Gzuncompress digunakan untuk dekompresi data yang dapat menyembunyikan kode.",
+    "impact": "Menyembunyikan kode berbahaya."
+  },
+  "gzdecode_decoding": {
+    "pattern": "gzdecode\\s*\\(",
+    "description": "Gzdecode digunakan untuk dekompresi data yang dapat menyembunyikan kode.",
+    "impact": "Menyembunyikan kode berbahaya."
+  },
+  "unserialize_decoding": {
+    "pattern": "unserialize\\s*\\(",
+    "description": "Unserialize dapat digunakan untuk menjalankan payload berbahaya dalam data serialized.",
+    "impact": "Eksekusi kode berbahaya."
+  },
+  "urldecode_decoding": {
+    "pattern": "urldecode\\s*\\(",
+    "description": "Fungsi urldecode sering digunakan untuk mendekodekan data yang disembunyikan dalam URL.",
+    "impact": "Menyembunyikan kode berbahaya."
+  },
+  "dynamic_variable": {
+    "pattern": "\\$\\{\\s*['\"]\\\\x[0-9a-fA-F]{2,}.*?['\"]\\s*\\}",
+    "description": "Variabel dinamis sering digunakan untuk menyamarkan kode berbahaya.",
+    "impact": "Menyamarkan kode berbahaya."
+  },
+  "variable_variable": {
+    "pattern": "\\$\\$[a-zA-Z0-9_]+",
+    "description": "Variabel variabel memungkinkan akses dinamis ke variabel lain.",
+    "impact": "Menyamarkan kode berbahaya."
+  },
+  "dynamic_function_call": {
+    "pattern": "\\$\\w+\\s*\\(",
+    "description": "Panggilan fungsi dinamis dapat digunakan untuk mengeksekusi fungsi berbahaya.",
+    "impact": "Eksekusi kode berbahaya."
+  },
+  "file_write": {
+    "pattern": "(fwrite|file_put_contents)\\s*\\(",
+    "description": "Fungsi ini digunakan untuk menulis file, dapat digunakan untuk menyebarkan malware.",
+    "impact": "Pembuatan file berbahaya."
+  },
+  "file_read": {
+    "pattern": "(fread|file_get_contents)\\s*\\(",
+    "description": "Fungsi ini digunakan untuk membaca file, dapat digunakan untuk mencuri data.",
+    "impact": "Pencurian data."
+  },
+  "include_execution": {
+    "pattern": "(include|require)(_once)?\\s*\\(",
+    "description": "Include atau require dapat digunakan untuk menyisipkan file berbahaya.",
+    "impact": "Eksekusi kode berbahaya."
+  },
+  "globals_modification": {
+    "pattern": "\\$_(GET|POST|COOKIE|REQUEST)\\s*\\[.*?\\]\\s*\\(",
+    "description": "Memodifikasi variabel global dapat memungkinkan injeksi kode.",
+    "impact": "Eksekusi kode berbahaya."
+  },
+  "globals_variable": {
+    "pattern": "\\$_(GET|POST|COOKIE|REQUEST)\\s*\\[.*?\\]\\s*=\\s*",
+    "description": "Manipulasi variabel global dapat memungkinkan eksploitasi data pengguna.",
+    "impact": "Pencurian data atau injeksi."
+  },
+  "hexadecimal_obfuscation": {
+    "pattern": "\\\\x[0-9a-fA-F]{2}",
+    "description": "Kode heksadesimal sering digunakan untuk menyembunyikan payload berbahaya.",
+    "impact": "Menyembunyikan kode berbahaya."
+  },
+  "concatenation_obfuscation": {
+    "pattern": "['\"].*?\\.\\s*['\"]",
+    "description": "Konkatenasi string dapat digunakan untuk menyamarkan kode berbahaya.",
+    "impact": "Menyamarkan kode berbahaya."
+  },
+  "url_injection": {
+    "pattern": "https?://[^\\s]+",
+    "description": "URL eksternal dapat digunakan untuk memuat payload berbahaya.",
+    "impact": "Pemanggilan kode atau data berbahaya."
+  },
+  "remote_execution": {
+    "pattern": "(preg_replace|create_function|eval|assert)\\s*\\(.*https?://.*\\)",
+    "description": "Eksekusi remote memungkinkan kode dieksekusi dari sumber eksternal.",
+    "impact": "Eksekusi kode berbahaya dari jarak jauh."
+  },
+  "suspicious_function": {
+    "pattern": "(error_reporting\\(0\\)|ini_set\\('display_errors', 0\\))",
+    "description": "Mematikan laporan error dapat digunakan untuk menyembunyikan aktivitas berbahaya.",
+    "impact": "Menyembunyikan aktivitas berbahaya."
+  }
+}
