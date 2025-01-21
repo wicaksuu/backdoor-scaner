@@ -9,6 +9,7 @@ from datetime import datetime
 from concurrent.futures import ThreadPoolExecutor
 from rich.console import Console
 from rich.table import Table
+from fpdf import FPDF
 
 # Konfigurasi logging
 logging.basicConfig(
@@ -72,13 +73,12 @@ def upload_file_to_virustotal(file_path):
     headers = {"x-apikey": VIRUSTOTAL_API_KEY}
     files = {"file": (file_path, open(file_path, "rb"))}
 
-    response = requests.post(UPLOAD_URL, headers=headers, files=files)
-    if response.status_code in (200, 201):
+    try:
+        response = requests.post(UPLOAD_URL, headers=headers, files=files)
+        response.raise_for_status()
         return response.json()
-    else:
-        logging.error(
-            f"Failed to upload file to VirusTotal: {response.status_code} - {response.text}"
-        )
+    except requests.exceptions.RequestException as e:
+        logging.warning(f"Gagal terhubung ke VirusTotal: {e}")
         return None
 
 
@@ -87,13 +87,12 @@ def check_analysis_status(file_id):
     url = f"{ANALYSIS_URL}{file_id}"
     headers = {"x-apikey": VIRUSTOTAL_API_KEY}
 
-    response = requests.get(url, headers=headers)
-    if response.status_code == 200:
+    try:
+        response = requests.get(url, headers=headers)
+        response.raise_for_status()
         return response.json()
-    else:
-        logging.error(
-            f"Failed to check analysis status: {response.status_code} - {response.text}"
-        )
+    except requests.exceptions.RequestException as e:
+        logging.warning(f"Gagal memeriksa status analisis: {e}")
         return None
 
 
@@ -109,22 +108,6 @@ def wait_for_analysis_completion(file_id):
             time.sleep(10)
         else:
             break
-
-
-# Fungsi untuk menampilkan kesimpulan dari VirusTotal
-def display_virustotal_results(analysis_result):
-    stats = analysis_result["data"]["attributes"]["stats"]
-    malicious = stats.get("malicious", 0)
-
-    if malicious > 0:
-        console.log("[bold red]File ini TIDAK AMAN![/bold red]")
-    else:
-        console.log("[bold green]File ini AMAN![/bold green]")
-
-    file_hash = analysis_result["meta"]["file_info"]["sha256"]
-    console.log(
-        f"Detail Analisis dapat dilihat di: https://www.virustotal.com/gui/file/{file_hash}"
-    )
 
 
 # Fungsi untuk menyimpan hasil scan ke dalam file JSON
@@ -167,6 +150,65 @@ def save_report(scan_results, save_path):
         logging.error(f"Gagal menyimpan laporan: {e}")
 
 
+# Fungsi untuk menyimpan hasil dalam format PDF
+def save_report_pdf(scan_results, pdf_path):
+    pdf = FPDF()
+    pdf.set_auto_page_break(auto=True, margin=15)
+    pdf.add_page()
+    pdf.set_font("Arial", size=12)
+
+    pdf.set_font("Arial", style="B", size=16)
+    pdf.cell(200, 10, txt="Scan Report", ln=True, align="C")
+    pdf.ln(10)
+
+    for result in scan_results:
+        pdf.set_font("Arial", style="B", size=12)
+        pdf.cell(0, 10, txt=f"File: {result['file_path']}", ln=True)
+        pdf.set_font("Arial", size=11)
+        pdf.cell(0, 10, txt=f"Extension: {result['extension']}", ln=True)
+        pdf.cell(
+            0,
+            10,
+            txt=f"Created: {result['created_time'].strftime('%Y-%m-%d %H:%M:%S')}",
+            ln=True,
+        )
+        pdf.cell(
+            0,
+            10,
+            txt=f"Modified: {result['modified_time'].strftime('%Y-%m-%d %H:%M:%S')}",
+            ln=True,
+        )
+        pdf.cell(0, 10, txt=f"Size: {result['size_in_bytes']} bytes", ln=True)
+        pdf.ln(5)
+
+        pdf.set_font("Arial", style="B", size=12)
+        pdf.cell(0, 10, txt="Patterns Found:", ln=True)
+        pdf.set_font("Arial", size=11)
+        for pattern in result["patterns_found"]:
+            pdf.cell(
+                0,
+                10,
+                txt=f"- {pattern['type']} (Line {pattern['line']}): {pattern['description']} ({pattern['impact']})",
+                ln=True,
+            )
+        pdf.ln(5)
+
+        if "virustotal" in result:
+            vt = result["virustotal"]
+            pdf.set_font("Arial", style="B", size=12)
+            pdf.cell(0, 10, txt="VirusTotal Analysis:", ln=True)
+            pdf.set_font("Arial", size=11)
+            pdf.cell(
+                0, 10, txt=f"- Is Safe: {'Yes' if vt['is_safe'] else 'No'}", ln=True
+            )
+            pdf.cell(0, 10, txt=f"- Malicious Count: {vt['malicious_count']}", ln=True)
+            pdf.cell(0, 10, txt=f"- Analysis Link: {vt['analysis_link']}", ln=True)
+        pdf.ln(10)
+
+    pdf.output(pdf_path)
+    console.log(f"[bold green]Laporan PDF berhasil disimpan ke {pdf_path}[/bold green]")
+
+
 # Fungsi utama
 def main():
     parser = argparse.ArgumentParser(
@@ -191,6 +233,7 @@ def main():
         help="Check suspicious files with VirusTotal",
     )
     parser.add_argument("--save", help="File to save the scan report")
+    parser.add_argument("--save-pdf", help="Path to save the scan report as a PDF")
     args = parser.parse_args()
 
     patterns = load_patterns(args.patterns)
@@ -227,25 +270,33 @@ def main():
             for suspicious_file in suspicious_files:
                 vt_result = upload_file_to_virustotal(suspicious_file["file_path"])
                 if vt_result:
-                    file_id = vt_result["data"]["id"]
-                    final_result = wait_for_analysis_completion(file_id)
-                    if final_result:
-                        stats = final_result["data"]["attributes"]["stats"]
-                        malicious_count = stats.get("malicious", 0)
-                        is_safe = malicious_count == 0
-                        file_hash = final_result["meta"]["file_info"]["sha256"]
-                        analysis_link = (
-                            f"https://www.virustotal.com/gui/file/{file_hash}"
-                        )
+                    file_id = vt_result.get("data", {}).get("id")
+                    if file_id:
+                        final_result = wait_for_analysis_completion(file_id)
+                        if final_result:
+                            stats = final_result["data"]["attributes"]["stats"]
+                            malicious_count = stats.get("malicious", 0)
+                            is_safe = malicious_count == 0
+                            file_hash = final_result["meta"]["file_info"]["sha256"]
+                            analysis_link = (
+                                f"https://www.virustotal.com/gui/file/{file_hash}"
+                            )
 
-                        suspicious_file["virustotal"] = {
-                            "is_safe": is_safe,
-                            "malicious_count": malicious_count,
-                            "analysis_link": analysis_link,
-                        }
+                            suspicious_file["virustotal"] = {
+                                "is_safe": is_safe,
+                                "malicious_count": malicious_count,
+                                "analysis_link": analysis_link,
+                            }
+                        else:
+                            console.log(
+                                f"[bold yellow]Skipping VirusTotal check for {suspicious_file['file_path']}[/bold yellow]"
+                            )
 
     if args.save:
         save_report(suspicious_files, args.save)
+
+    if args.save_pdf:
+        save_report_pdf(suspicious_files, args.save_pdf)
 
 
 if __name__ == "__main__":
