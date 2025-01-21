@@ -3,108 +3,210 @@ import re
 import argparse
 import time
 import requests
+import logging
 from datetime import datetime
+from concurrent.futures import ThreadPoolExecutor
 
-# VirusTotal API Key
-VIRUSTOTAL_API_KEY = "YOUR_VIRUSTOTAL_API_KEY"
+# Konfigurasi logging
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 
-# Pola-pola umum untuk backdoor dan obfuscation
+# VirusTotal API Key (gunakan variabel lingkungan untuk keamanan)
+VIRUSTOTAL_API_KEY = os.getenv("VIRUSTOTAL_API_KEY")
+
+# Pola-pola umum untuk backdoor dan obfuscation dengan deskripsi dan dampak
 SUSPICIOUS_PATTERNS = {
-    "eval_execution": r"eval\s*\(",
-    "assert_execution": r"assert\s*\(",
-    "preg_replace_execution": r"preg_replace\s*\(.*?/e",
-    "create_function_execution": r"create_function\s*\(",
-    "system_execution": r"system\s*\(",
-    "exec_execution": r"exec\s*\(",
-    "shell_exec_execution": r"shell_exec\s*\(",
-    "passthru_execution": r"passthru\s*\(",
-    "pcntl_exec_execution": r"pcntl_exec\s*\(",
-    "backtick_execution": r"`[^`]+`",
-    "base64_decoding": r"base64_decode\s*\(",
-    "str_rot13_decoding": r"str_rot13\s*\(",
-    "gzinflate_decoding": r"gzinflate\s*\(",
-    "gzuncompress_decoding": r"gzuncompress\s*\(",
-    "gzdecode_decoding": r"gzdecode\s*\(",
-    "unserialize_decoding": r"unserialize\s*\(",
-    "urldecode_decoding": r"urldecode\s*\(",
-    "dynamic_variable": r"\$\{\s*['\"]\\x[0-9a-fA-F]{2,}.*?['\"]\s*\}",
-    "variable_variable": r"\$\$[a-zA-Z0-9_]+",
-    "dynamic_function_call": r"\$\w+\s*\(",
-    "file_write": r"(fwrite|file_put_contents)\s*\(",
-    "file_read": r"(fread|file_get_contents)\s*\(",
-    "include_execution": r"(include|require)(_once)?\s*\(",
-    "globals_modification": r"\$_(GET|POST|COOKIE|REQUEST)\s*\[.*?\]\s*\(",
-    "globals_variable": r"\$_(GET|POST|COOKIE|REQUEST)\s*\[.*?\]\s*=\s*",
-    "hexadecimal_obfuscation": r"\\x[0-9a-fA-F]{2}",
-    "concatenation_obfuscation": r"['\"].*?\.\s*['\"]",
-    "url_injection": r"https?://[^\s]+",
-    "remote_execution": r"(preg_replace|create_function|eval|assert)\s*\(.*https?://.*\)",
-    "suspicious_function": r"(error_reporting\(0\)|ini_set\('display_errors', 0\))",
+    "eval_execution": {
+        "pattern": r"eval\s*\(",
+        "description": "Penggunaan eval dapat dieksploitasi untuk mengeksekusi kode arbitrer.",
+        "impact": "Eksekusi kode berbahaya."
+    },
+    "assert_execution": {
+        "pattern": r"assert\s*\(",
+        "description": "Assert dapat digunakan untuk menjalankan ekspresi PHP.",
+        "impact": "Eksekusi kode berbahaya."
+    },
+    "preg_replace_execution": {
+        "pattern": r"preg_replace\s*\(.*?/e",
+        "description": "Penggunaan modifier 'e' pada preg_replace dapat digunakan untuk eksekusi kode.",
+        "impact": "Eksekusi kode berbahaya."
+    },
+    "create_function_execution": {
+        "pattern": r"create_function\s*\(",
+        "description": "Fungsi create_function memungkinkan pembuatan kode secara dinamis.",
+        "impact": "Eksekusi kode berbahaya."
+    },
+    "system_execution": {
+        "pattern": r"system\s*\(",
+        "description": "Fungsi system digunakan untuk menjalankan perintah shell.",
+        "impact": "Eksekusi perintah sistem berbahaya."
+    },
+    "exec_execution": {
+        "pattern": r"exec\s*\(",
+        "description": "Fungsi exec digunakan untuk menjalankan perintah shell eksternal.",
+        "impact": "Eksekusi perintah sistem berbahaya."
+    },
+    "shell_exec_execution": {
+        "pattern": r"shell_exec\s*\(",
+        "description": "Fungsi shell_exec digunakan untuk menjalankan perintah shell dan mengembalikan outputnya.",
+        "impact": "Eksekusi perintah sistem berbahaya."
+    },
+    "passthru_execution": {
+        "pattern": r"passthru\s*\(",
+        "description": "Fungsi passthru digunakan untuk mengeksekusi perintah shell dan mengirimkan output secara langsung.",
+        "impact": "Eksekusi perintah sistem berbahaya."
+    },
+    "pcntl_exec_execution": {
+        "pattern": r"pcntl_exec\s*\(",
+        "description": "Fungsi pcntl_exec digunakan untuk mengeksekusi program eksternal.",
+        "impact": "Eksekusi perintah sistem berbahaya."
+    },
+    "backtick_execution": {
+        "pattern": r"`[^`]+`",
+        "description": "Penggunaan backtick memungkinkan eksekusi perintah shell.",
+        "impact": "Eksekusi perintah sistem berbahaya."
+    },
+    "base64_decoding": {
+        "pattern": r"base64_decode\s*\(",
+        "description": "Decode base64 sering digunakan untuk menyembunyikan kode.",
+        "impact": "Menyembunyikan kode berbahaya."
+    },
+    "str_rot13_decoding": {
+        "pattern": r"str_rot13\s*\(",
+        "description": "Fungsi str_rot13 dapat digunakan untuk menyembunyikan kode dengan enkripsi dasar.",
+        "impact": "Menyembunyikan kode berbahaya."
+    },
+    "gzinflate_decoding": {
+        "pattern": r"gzinflate\s*\(",
+        "description": "Gzinflate digunakan untuk dekompresi data yang dapat menyembunyikan kode.",
+        "impact": "Menyembunyikan kode berbahaya."
+    },
+    "gzuncompress_decoding": {
+        "pattern": r"gzuncompress\s*\(",
+        "description": "Gzuncompress digunakan untuk dekompresi data yang dapat menyembunyikan kode.",
+        "impact": "Menyembunyikan kode berbahaya."
+    },
+    "gzdecode_decoding": {
+        "pattern": r"gzdecode\s*\(",
+        "description": "Gzdecode digunakan untuk dekompresi data yang dapat menyembunyikan kode.",
+        "impact": "Menyembunyikan kode berbahaya."
+    },
+    "unserialize_decoding": {
+        "pattern": r"unserialize\s*\(",
+        "description": "Unserialize dapat digunakan untuk menjalankan payload berbahaya dalam data serialized.",
+        "impact": "Eksekusi kode berbahaya."
+    },
+    "urldecode_decoding": {
+        "pattern": r"urldecode\s*\(",
+        "description": "Fungsi urldecode sering digunakan untuk mendekodekan data yang disembunyikan dalam URL.",
+        "impact": "Menyembunyikan kode berbahaya."
+    },
+    "dynamic_variable": {
+        "pattern": r"\$\{\s*['"]\\x[0-9a-fA-F]{2,}.*?['"]\s*\}",
+        "description": "Variabel dinamis sering digunakan untuk menyamarkan kode berbahaya.",
+        "impact": "Menyamarkan kode berbahaya."
+    },
+    "variable_variable": {
+        "pattern": r"\$\$[a-zA-Z0-9_]+",
+        "description": "Variabel variabel memungkinkan akses dinamis ke variabel lain.",
+        "impact": "Menyamarkan kode berbahaya."
+    },
+    "dynamic_function_call": {
+        "pattern": r"\$\w+\s*\(",
+        "description": "Panggilan fungsi dinamis dapat digunakan untuk mengeksekusi fungsi berbahaya.",
+        "impact": "Eksekusi kode berbahaya."
+    },
+    "file_write": {
+        "pattern": r"(fwrite|file_put_contents)\s*\(",
+        "description": "Fungsi ini digunakan untuk menulis file, dapat digunakan untuk menyebarkan malware.",
+        "impact": "Pembuatan file berbahaya."
+    },
+    "file_read": {
+        "pattern": r"(fread|file_get_contents)\s*\(",
+        "description": "Fungsi ini digunakan untuk membaca file, dapat digunakan untuk mencuri data.",
+        "impact": "Pencurian data."
+    },
+    "include_execution": {
+        "pattern": r"(include|require)(_once)?\s*\(",
+        "description": "Include atau require dapat digunakan untuk menyisipkan file berbahaya.",
+        "impact": "Eksekusi kode berbahaya."
+    },
+    "globals_modification": {
+        "pattern": r"\$_(GET|POST|COOKIE|REQUEST)\s*\[.*?\]\s*\(",
+        "description": "Memodifikasi variabel global dapat memungkinkan injeksi kode.",
+        "impact": "Eksekusi kode berbahaya."
+    },
+    "globals_variable": {
+        "pattern": r"\$_(GET|POST|COOKIE|REQUEST)\s*\[.*?\]\s*=\s*",
+        "description": "Manipulasi variabel global dapat memungkinkan eksploitasi data pengguna.",
+        "impact": "Pencurian data atau injeksi."
+    },
+    "hexadecimal_obfuscation": {
+        "pattern": r"\\x[0-9a-fA-F]{2}",
+        "description": "Kode heksadesimal sering digunakan untuk menyembunyikan payload berbahaya.",
+        "impact": "Menyembunyikan kode berbahaya."
+    },
+    "concatenation_obfuscation": {
+        "pattern": r"['"].*?\.\s*['"]",
+        "description": "Konkatenasi string dapat digunakan untuk menyamarkan kode berbahaya.",
+        "impact": "Menyamarkan kode berbahaya."
+    },
+    "url_injection": {
+        "pattern": r"https?://[^\s]+",
+        "description": "URL eksternal dapat digunakan untuk memuat payload berbahaya.",
+        "impact": "Pemanggilan kode atau data berbahaya."
+    },
+    "remote_execution": {
+        "pattern": r"(preg_replace|create_function|eval|assert)\s*\(.*https?://.*\)",
+        "description": "Eksekusi remote memungkinkan kode dieksekusi dari sumber eksternal.",
+        "impact": "Eksekusi kode berbahaya dari jarak jauh."
+    },
+    "suspicious_function": {
+        "pattern": r"(error_reporting\(0\)|ini_set\('display_errors', 0\))",
+        "description": "Mematikan laporan error dapat digunakan untuk menyembunyikan aktivitas berbahaya.",
+        "impact": "Menyembunyikan aktivitas berbahaya."
+    },
 }
 
 # Fungsi untuk memindai file PHP berdasarkan pola mencurigakan
-def scan_files(directory, extensions):
-    suspicious_files = []
-    total_files = 0
+def scan_file(filepath):
+    try:
+        with open(filepath, 'r', encoding='utf-8', errors='ignore') as f:
+            content = f.readlines()
+            found_patterns = []
 
-    # Hitung jumlah total file yang akan dipindai
-    for root, _, files in os.walk(directory):
-        for file in files:
-            if not extensions or file.split('.')[-1] in extensions:
-                total_files += 1
+            # Periksa setiap baris dalam file
+            for line_number, line in enumerate(content, start=1):
+                for backdoor_type, details in SUSPICIOUS_PATTERNS.items():
+                    if re.search(details["pattern"], line):
+                        found_patterns.append({
+                            "type": backdoor_type,
+                            "description": details["description"],
+                            "impact": details["impact"],
+                            "line": line_number
+                        })
 
-    scanned_files = 0
-    start_time = time.time()
-
-    for root, dirs, files in os.walk(directory):
-        for file in files:
-            if not extensions or file.split('.')[-1] in extensions:
-                filepath = os.path.join(root, file)
-                scanned_files += 1
-                try:
-                    with open(filepath, 'r', encoding='utf-8', errors='ignore') as f:
-                        content = f.read()
-                        found_patterns = []
-
-                        # Periksa setiap pola dalam file
-                        for backdoor_type, pattern in SUSPICIOUS_PATTERNS.items():
-                            if re.search(pattern, content):
-                                found_patterns.append(backdoor_type)
-
-                        if found_patterns:
-                            file_info = {
-                                "file_path": filepath,
-                                "patterns_found": found_patterns,
-                                "extension": file.split('.')[-1],
-                                "created_time": datetime.fromtimestamp(os.path.getctime(filepath)),
-                                "modified_time": datetime.fromtimestamp(os.path.getmtime(filepath)),
-                                "size_in_bytes": os.path.getsize(filepath),
-                                "virus_total": scan_with_virustotal(filepath),
-                            }
-                            suspicious_files.append(file_info)
-
-                except Exception as e:
-                    print(f"Error reading file {filepath}: {e}")
-
-                # Tampilkan status proses
-                elapsed_time = time.time() - start_time
-                remaining_time = (elapsed_time / scanned_files) * (total_files - scanned_files) if scanned_files else 0
-                progress = (scanned_files / total_files) * 100
-                print(
-                    f"\rScanning: {filepath} | {scanned_files}/{total_files} files ({progress:.2f}%) | "
-                    f"Estimated time remaining: {remaining_time:.2f} seconds", end=""
-                )
-    print()  # Pindah ke baris baru setelah scan selesai
-    return suspicious_files
+            if found_patterns:
+                return {
+                    "file_path": filepath,
+                    "patterns_found": found_patterns,
+                    "extension": filepath.split('.')[-1],
+                    "created_time": datetime.fromtimestamp(os.path.getctime(filepath)),
+                    "modified_time": datetime.fromtimestamp(os.path.getmtime(filepath)),
+                    "size_in_bytes": os.path.getsize(filepath),
+                    "virus_total": scan_with_virustotal(filepath),
+                }
+    except Exception as e:
+        logging.error(f"Error reading file {filepath}: {e}")
+    return None
 
 # Fungsi untuk memindai file dengan VirusTotal
 def scan_with_virustotal(filepath):
     if not VIRUSTOTAL_API_KEY:
-        print("VirusTotal API key not set. Skipping VirusTotal scan.")
+        logging.warning("VirusTotal API key not set. Skipping VirusTotal scan.")
         return None
 
-    with open(filepath, "rb") as file:
-        try:
+    try:
+        with open(filepath, "rb") as file:
             response = requests.post(
                 "https://www.virustotal.com/api/v3/files",
                 headers={"x-apikey": VIRUSTOTAL_API_KEY},
@@ -113,11 +215,10 @@ def scan_with_virustotal(filepath):
             if response.status_code == 200:
                 return response.json()
             else:
-                print(f"VirusTotal scan failed for {filepath}: {response.status_code}")
-                return None
-        except Exception as e:
-            print(f"Error scanning with VirusTotal: {e}")
-            return None
+                logging.error(f"VirusTotal scan failed for {filepath}: {response.status_code}")
+    except Exception as e:
+        logging.error(f"Error scanning with VirusTotal: {e}")
+    return None
 
 # Fungsi untuk menyimpan laporan ke file
 def save_report(report_data, output_file):
@@ -127,17 +228,22 @@ def save_report(report_data, output_file):
             f.write("=" * 40 + "\n\n")
             for file_info in report_data:
                 f.write(f"File: {file_info['file_path']}\n")
-                f.write(f"  Patterns Found: {', '.join(file_info['patterns_found'])}\n")
                 f.write(f"  Extension: {file_info['extension']}\n")
                 f.write(f"  Created Time: {file_info['created_time']}\n")
                 f.write(f"  Modified Time: {file_info['modified_time']}\n")
                 f.write(f"  Size: {file_info['size_in_bytes']} bytes\n")
+                f.write(f"  Patterns Found:\n")
+                for pattern in file_info['patterns_found']:
+                    f.write(f"    - Type: {pattern['type']}\n")
+                    f.write(f"      Description: {pattern['description']}\n")
+                    f.write(f"      Impact: {pattern['impact']}\n")
+                    f.write(f"      Line: {pattern['line']}\n")
                 f.write(f"  VirusTotal Report: {file_info['virus_total']}\n\n")
-        print(f"\nReport saved to {output_file}")
+        logging.info(f"Report saved to {output_file}")
     except Exception as e:
-        print(f"Error saving report: {e}")
+        logging.error(f"Error saving report: {e}")
 
-# Main program
+# Fungsi utama
 def main():
     parser = argparse.ArgumentParser(description="Scan files for potential backdoors and check with VirusTotal.")
     parser.add_argument("-d", "--directory", required=True, help="Directory to scan")
@@ -148,25 +254,46 @@ def main():
     directory_to_scan = args.directory
     extensions_to_scan = args.extensions
 
-    print(f"Scanning directory: {directory_to_scan}")
+    logging.info(f"Scanning directory: {directory_to_scan}")
     if extensions_to_scan:
-        print(f"Filtering by extensions: {', '.join(extensions_to_scan)}")
+        logging.info(f"Filtering by extensions: {', '.join(extensions_to_scan)}")
     else:
-        print("Scanning all file extensions.")
+        logging.info("Scanning all file extensions.")
 
-    suspicious_files = scan_files(directory_to_scan, extensions_to_scan)
+    suspicious_files = []
+    total_files = sum(
+        len(files) for _, _, files in os.walk(directory_to_scan)
+        if not extensions_to_scan or any(file.split('.')[-1] in extensions_to_scan for file in files)
+    )
+
+    with ThreadPoolExecutor() as executor:
+        futures = []
+        for root, _, files in os.walk(directory_to_scan):
+            for file in files:
+                if not extensions_to_scan or file.split('.')[-1] in extensions_to_scan:
+                    filepath = os.path.join(root, file)
+                    futures.append(executor.submit(scan_file, filepath))
+
+        for i, future in enumerate(futures, start=1):
+            result = future.result()
+            if result:
+                suspicious_files.append(result)
+            logging.info(f"Progress: {i}/{total_files} files scanned")
 
     if suspicious_files:
-        print("\nSuspicious files found:")
+        logging.info("\nSuspicious files found:")
         for file_info in suspicious_files:
-            print(f"\nFile: {file_info['file_path']}")
-            print(f"  Patterns Found: {', '.join(file_info['patterns_found'])}")
-            print(f"  Extension: {file_info['extension']}")
-            print(f"  Created Time: {file_info['created_time']}")
-            print(f"  Modified Time: {file_info['modified_time']}")
-            print(f"  Size: {file_info['size_in_bytes']} bytes")
-            if file_info['virus_total']:
-                print(f"  VirusTotal Report: {file_info['virus_total']}")
+            logging.info(f"\nFile: {file_info['file_path']}")
+            logging.info(f"  Extension: {file_info['extension']}")
+            logging.info(f"  Created Time: {file_info['created_time']}")
+            logging.info(f"  Modified Time: {file_info['modified_time']}")
+            logging.info(f"  Size: {file_info['size_in_bytes']} bytes")
+            logging.info(f"  Patterns Found:")
+            for pattern in file_info['patterns_found']:
+                logging.info(f"    - Type: {pattern['type']}")
+                logging.info(f"      Description: {pattern['description']}")
+                logging.info(f"      Impact: {pattern['impact']}")
+                logging.info(f"      Line: {pattern['line']}")
 
     if args.save:
         save_report(suspicious_files, args.save)
