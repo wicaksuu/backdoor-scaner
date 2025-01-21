@@ -1,0 +1,26 @@
+# Python bytecode files
+__pycache__/
+*.py[cod]
+
+# Virtual environment
+venv/
+.env
+
+# IDE specific files
+*.vscode/
+*.idea/
+
+# Log files
+*.log
+
+# Temporary files
+*.tmp
+*.bak
+*.swp
+
+# Reports
+*.txt
+
+# OS specific files
+.DS_Store
+Thumbs.db
