@@ -6,9 +6,12 @@ import requests
 import logging
 from datetime import datetime
 from concurrent.futures import ThreadPoolExecutor
+from rich.console import Console
+from rich.table import Table
 
 # Konfigurasi logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
+console = Console()
 
 # VirusTotal API Key (gunakan variabel lingkungan untuk keamanan)
 VIRUSTOTAL_API_KEY = os.getenv("VIRUSTOTAL_API_KEY")
@@ -193,55 +196,36 @@ def scan_file(filepath):
                     "created_time": datetime.fromtimestamp(os.path.getctime(filepath)),
                     "modified_time": datetime.fromtimestamp(os.path.getmtime(filepath)),
                     "size_in_bytes": os.path.getsize(filepath),
-                    "virus_total": scan_with_virustotal(filepath),
                 }
     except Exception as e:
         logging.error(f"Error reading file {filepath}: {e}")
     return None
 
-# Fungsi untuk memindai file dengan VirusTotal
-def scan_with_virustotal(filepath):
-    if not VIRUSTOTAL_API_KEY:
-        logging.warning("VirusTotal API key not set. Skipping VirusTotal scan.")
-        return None
+# Fungsi untuk menampilkan hasil dengan Rich
+def display_results(results):
+    table = Table(title="Suspicious File Scan Results")
 
-    try:
-        with open(filepath, "rb") as file:
-            response = requests.post(
-                "https://www.virustotal.com/api/v3/files",
-                headers={"x-apikey": VIRUSTOTAL_API_KEY},
-                files={"file": file},
-            )
-            if response.status_code == 200:
-                return response.json()
-            else:
-                logging.error(f"VirusTotal scan failed for {filepath}: {response.status_code}")
-    except Exception as e:
-        logging.error(f"Error scanning with VirusTotal: {e}")
-    return None
+    table.add_column("File Path", justify="left", style="cyan")
+    table.add_column("Extension", justify="center", style="green")
+    table.add_column("Created Time", justify="center")
+    table.add_column("Modified Time", justify="center")
+    table.add_column("Size (bytes)", justify="right", style="magenta")
+    table.add_column("Patterns Found", justify="left", style="yellow")
 
-# Fungsi untuk menyimpan laporan ke file
-def save_report(report_data, output_file):
-    try:
-        with open(output_file, 'w') as f:
-            f.write("Suspicious File Scan Report\n")
-            f.write("=" * 40 + "\n\n")
-            for file_info in report_data:
-                f.write(f"File: {file_info['file_path']}\n")
-                f.write(f"  Extension: {file_info['extension']}\n")
-                f.write(f"  Created Time: {file_info['created_time']}\n")
-                f.write(f"  Modified Time: {file_info['modified_time']}\n")
-                f.write(f"  Size: {file_info['size_in_bytes']} bytes\n")
-                f.write(f"  Patterns Found:\n")
-                for pattern in file_info['patterns_found']:
-                    f.write(f"    - Type: {pattern['type']}\n")
-                    f.write(f"      Description: {pattern['description']}\n")
-                    f.write(f"      Impact: {pattern['impact']}\n")
-                    f.write(f"      Line: {pattern['line']}\n")
-                f.write(f"  VirusTotal Report: {file_info['virus_total']}\n\n")
-        logging.info(f"Report saved to {output_file}")
-    except Exception as e:
-        logging.error(f"Error saving report: {e}")
+    for result in results:
+        patterns = "\n".join(
+            [f"[bold]{p['type']}[/bold] (Line {p['line']}) - {p['description']} ({p['impact']})" for p in result['patterns_found']]
+        )
+        table.add_row(
+            result['file_path'],
+            result['extension'],
+            result['created_time'].strftime("%Y-%m-%d %H:%M:%S"),
+            result['modified_time'].strftime("%Y-%m-%d %H:%M:%S"),
+            str(result['size_in_bytes']),
+            patterns
+        )
+
+    console.print(table)
 
 # Fungsi utama
 def main():
@@ -254,11 +238,11 @@ def main():
     directory_to_scan = args.directory
     extensions_to_scan = args.extensions
 
-    logging.info(f"Scanning directory: {directory_to_scan}")
+    console.log(f"Scanning directory: [bold]{directory_to_scan}[/bold]")
     if extensions_to_scan:
-        logging.info(f"Filtering by extensions: {', '.join(extensions_to_scan)}")
+        console.log(f"Filtering by extensions: [bold]{', '.join(extensions_to_scan)}[/bold]")
     else:
-        logging.info("Scanning all file extensions.")
+        console.log("Scanning all file extensions.")
 
     suspicious_files = []
     total_files = sum(
@@ -278,22 +262,11 @@ def main():
             result = future.result()
             if result:
                 suspicious_files.append(result)
-            logging.info(f"Progress: {i}/{total_files} files scanned")
+            console.log(f"Progress: [bold]{i}/{total_files}[/bold] files scanned")
 
     if suspicious_files:
-        logging.info("\nSuspicious files found:")
-        for file_info in suspicious_files:
-            logging.info(f"\nFile: {file_info['file_path']}")
-            logging.info(f"  Extension: {file_info['extension']}")
-            logging.info(f"  Created Time: {file_info['created_time']}")
-            logging.info(f"  Modified Time: {file_info['modified_time']}")
-            logging.info(f"  Size: {file_info['size_in_bytes']} bytes")
-            logging.info(f"  Patterns Found:")
-            for pattern in file_info['patterns_found']:
-                logging.info(f"    - Type: {pattern['type']}")
-                logging.info(f"      Description: {pattern['description']}")
-                logging.info(f"      Impact: {pattern['impact']}")
-                logging.info(f"      Line: {pattern['line']}")
+        console.log("\n[bold red]Suspicious files found:[/bold red]")
+        display_results(suspicious_files)
 
     if args.save:
         save_report(suspicious_files, args.save)
