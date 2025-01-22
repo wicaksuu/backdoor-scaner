@@ -148,5 +148,125 @@
     "pattern": "(error_reporting\\(0\\)|ini_set\\('display_errors', 0\\))",
     "description": "Mematikan laporan error dapat digunakan untuk menyembunyikan aktivitas berbahaya.",
     "impact": "Menyembunyikan aktivitas berbahaya."
+  },
+  "dynamic_import": {
+    "pattern": "__import__\\s*\\(",
+    "description": "Dynamic import dapat digunakan untuk memuat modul berbahaya.",
+    "impact": "Eksekusi kode atau modul berbahaya secara dinamis."
+  },
+  "reflection_api": {
+    "pattern": "Class\\.forName\\s*\\(.*\\)|Method\\.invoke\\s*\\(.*\\)",
+    "description": "Penggunaan Reflection API dapat digunakan untuk menjalankan kode tersembunyi.",
+    "impact": "Eksekusi kode tersembunyi melalui Reflection API."
+  },
+  "pickle_deserialization": {
+    "pattern": "pickle\\.loads\\s*\\(",
+    "description": "Deserialization menggunakan pickle dapat menjalankan payload berbahaya.",
+    "impact": "Eksekusi kode berbahaya melalui payload yang diserialisasi."
+  },
+  "dynamic_code_execution": {
+    "pattern": "eval\\s*\\(.*gzdecode",
+    "description": "Menggunakan eval dengan data yang didekode dari gzdecode untuk mengeksekusi kode tersembunyi.",
+    "impact": "Eksekusi kode berbahaya yang disembunyikan dalam format terkompresi."
+  },
+  "command_injection": {
+    "pattern": "\\$\\(.*\\)|`.*`",
+    "description": "Penggunaan substitusi perintah dapat memungkinkan injeksi kode berbahaya.",
+    "impact": "Eksekusi perintah shell arbitrer."
+  },
+  "suspicious_network_activity": {
+    "pattern": "(curl|wget)\\s*-o\\s*.*http[s]?://.*",
+    "description": "Perintah untuk mengunduh dari URL eksternal, yang dapat digunakan untuk membawa file berbahaya.",
+    "impact": "Pengunduhan dan eksekusi file berbahaya."
+  },
+  "reverse_shell": {
+    "pattern": "bash\\s*-i\\s*>\\s*/dev/tcp/.*",
+    "description": "Perintah Bash untuk membuka reverse shell melalui koneksi TCP.",
+    "impact": "Akses jarak jauh tanpa izin."
+  },
+  "remote_file_include": {
+    "pattern": "(include|require)\\s*\\(.*http[s]?://.*\\)",
+    "description": "Menyisipkan file remote yang dapat berisi kode berbahaya.",
+    "impact": "Eksekusi kode berbahaya dari sumber eksternal."
+  },
+  "send_execution": {
+    "pattern": "send\\s*\\(.*\\)",
+    "description": "Panggilan metode dinamis dalam Ruby.",
+    "impact": "Eksekusi kode berbahaya melalui metode dinamis."
+  },
+  "unsafe_code_rust": {
+    "pattern": "unsafe\\s*\\{.*\\}",
+    "description": "Blok kode tidak aman dalam Rust.",
+    "impact": "Potensi eksekusi kode yang tidak aman."
+  },
+  "dynamic_code_lua": {
+    "pattern": "loadstring\\s*\\(.*\\)",
+    "description": "Eksekusi kode dinamis dalam Lua.",
+    "impact": "Eksekusi kode berbahaya secara dinamis."
+  },
+  "reverse_shell_nc": {
+    "pattern": "nc\\s*-e\\s*/bin/bash",
+    "description": "Perintah Netcat untuk membuka reverse shell.",
+    "impact": "Akses jarak jauh tanpa izin."
+  },
+  "union_sql_injection": {
+    "pattern": "UNION\\s*SELECT\\s*.*--",
+    "description": "Injeksi SQL berbasis UNION.",
+    "impact": "Akses tidak sah ke data sensitif."
+  },
+  "http_request_lua": {
+    "pattern": "http\\.request\\s*\\(.*http[s]?://.*\\)",
+    "description": "Permintaan HTTP mencurigakan dalam Lua.",
+    "impact": "Pengambilan data dari sumber tidak terpercaya."
+  },
+  "dynamic_import_go": {
+    "pattern": "exec\\.Command\\s*\\(.*\\)",
+    "description": "Panggilan shell dinamis dalam Go.",
+    "impact": "Eksekusi perintah sistem yang tidak aman."
+  },
+  "callback_execution": {
+    "pattern": "\\$_(GET|POST|REQUEST|COOKIE)\\s*\\[.*\\]\\s*\\(.*\\)",
+    "description": "Penggunaan callback dinamis dari input user dapat memicu eksekusi kode.",
+    "impact": "Eksekusi kode berbahaya dari input pengguna."
+  },
+  "insecure_file_inclusion": {
+    "pattern": "(include|require)(_once)?\\s*\\(\\s*\\$_(GET|POST|REQUEST|COOKIE)\\s*\\[.*\\]\\s*\\)",
+    "description": "Penggunaan variabel global dalam include atau require dapat menyebabkan LFI atau RFI.",
+    "impact": "Eksekusi kode berbahaya dari file yang disisipkan."
+  },
+  "yaml_load_exploit": {
+    "pattern": "yaml\\.load\\s*\\(.*\\)",
+    "description": "Penggunaan yaml.load tanpa SafeLoader dapat menyebabkan eksekusi kode.",
+    "impact": "Eksekusi kode berbahaya melalui data YAML."
+  },
+  "jndi_injection": {
+    "pattern": "InitialContext\\s*\\(.*\\)\\.lookup\\s*\\(.*\\)",
+    "description": "Injeksi JNDI dapat digunakan untuk memuat objek dari server eksternal.",
+    "impact": "Eksekusi kode jarak jauh melalui JNDI."
+  },
+  "serialized_object_deserialization": {
+    "pattern": "ObjectInputStream\\s*\\(.*\\)\\.readObject\\s*\\(\\)",
+    "description": "Deserialization objek Java dapat menjalankan payload berbahaya.",
+    "impact": "Eksekusi kode berbahaya melalui deserialization."
+  },
+  "sql_union_injection": {
+    "pattern": "UNION\\s*SELECT\\s*.*--",
+    "description": "Injeksi SQL berbasis UNION untuk mendapatkan data sensitif.",
+    "impact": "Akses tidak sah ke data sensitif."
+  },
+  "sql_boolean_injection": {
+    "pattern": "(\\sOR\\s|\\sAND\\s)\\s*1\\s*=\\s*1",
+    "description": "Injeksi SQL berbasis logika boolean yang selalu benar.",
+    "impact": "Pengungkapan data sensitif melalui injeksi SQL."
+  },
+  "prototype_pollution": {
+    "pattern": "Object\\.assign\\s*\\(\\s*\\{.*__proto__.*\\}\\s*,\\s*.*\\)",
+    "description": "Manipulasi prototipe dalam Node.js dapat digunakan untuk mengubah perilaku objek.",
+    "impact": "Eksekusi kode berbahaya melalui manipulasi prototipe."
+  },
+  "marshal_deserialization": {
+    "pattern": "Marshal\\.load\\s*\\(.*\\)",
+    "description": "Deserialization Marshal dapat digunakan untuk menjalankan payload berbahaya.",
+    "impact": "Eksekusi kode berbahaya melalui deserialization."
   }
 }
