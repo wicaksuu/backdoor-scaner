@@ -1,4 +1,4 @@
-# Traefik Dashboard Setup Tutorial
+# Traefik Dashboard Setup Tutorial (Full Secure Configuration)
 
 ## Step 1: Prerequisites
 Make sure you have the following installed on your server:
@@ -32,7 +32,6 @@ services:
     ports:
       - "80:80"         # HTTP traffic
       - "443:443"       # HTTPS traffic
-      - "8080:8080"     # Traefik dashboard
     volumes:
       - "/var/run/docker.sock:/var/run/docker.sock:ro"   # Access Docker for auto service discovery
       - "./traefik.yml:/etc/traefik/traefik.yml:ro"      # Main configuration file
@@ -60,12 +59,20 @@ global:
 entryPoints:
   web:
     address: ":80"
+    http:
+      redirections:
+        entryPoint:
+          to: websecure
+          scheme: https
   websecure:
     address: ":443"
+    http:
+      middlewares:
+        - security-headers
 
 api:
   dashboard: true
-  insecure: true  # Use only for testing. Disable in production.
+  insecure: false
 
 providers:
   docker:
@@ -91,9 +98,6 @@ Create a file named `dynamic.yml` to define dynamic configurations, such as midd
 ```yaml
 http:
   middlewares:
-    redirect-to-https:
-      redirectScheme:
-        scheme: https
     security-headers:
       headers:
         frameDeny: true
@@ -102,6 +106,22 @@ http:
         stsSeconds: 63072000
         stsIncludeSubdomains: true
         stsPreload: true
+        forceSTSHeader: true
+    dashboard-auth:
+      basicAuth:
+        users:
+          - "admin:$apr1$xyz$hashed-password" # Replace with a hashed password
+
+  routers:
+    dashboard:
+      rule: "Host(`traefik.example.com`)"
+      service: api@internal
+      entryPoints:
+        - websecure
+      tls:
+        certResolver: letsencrypt
+      middlewares:
+        - dashboard-auth
 ```
 
 ---
@@ -125,49 +145,25 @@ docker compose up -d
 
 ---
 
-## Step 8: Access the Dashboard
-- By default, the dashboard is accessible at:
-  - **`http://<your-server-ip>:8080/dashboard/`**
-- If using a domain, update DNS to point to your server, and configure Traefik to expose the dashboard through a specific subdomain (e.g., `traefik.example.com`).
+## Step 8: Update DNS for Dashboard Access
+Ensure that you add a DNS record for `traefik.example.com` pointing to your server's IP address. This is necessary to access the secure dashboard.
 
 ---
 
-## Step 9: (Optional) Configure Secure Access to Dashboard
-1. Disable `insecure: true` in `traefik.yml`.
-2. Add authentication middleware in `dynamic.yml`:
-
-```yaml
-http:
-  middlewares:
-    dashboard-auth:
-      basicAuth:
-        users:
-          - "admin:$apr1$xyz$hash-password"
-```
-
-3. Update the router in `dynamic.yml` to use this middleware:
-
-```yaml
-http:
-  routers:
-    dashboard:
-      rule: "Host(`traefik.example.com`)"
-      service: api@internal
-      entryPoints:
-        - websecure
-      tls:
-        certResolver: letsencrypt
-      middlewares:
-        - dashboard-auth
-```
+## Step 9: Verify and Test
+1. **Check Traefik Logs:**
+   ```bash
+   docker logs -f traefik
+   ```
+2. **Access the Dashboard:**
+   - **URL:** `https://traefik.example.com`
+   - **Username:** `admin`
+   - **Password:** Use the one configured in `dynamic.yml` (hashed).
+3. **Ensure HTTPS is enforced** for all services and check for valid SSL certificates.
 
 ---
 
-## Step 10: Verify and Test
-- Check the Traefik logs for errors:
-
-```bash
-docker logs -f traefik
-```
-
-- Verify the dashboard is working and SSL certificates are generated correctly.
+## Security Notes
+- **Disable `insecure: true` for production** to prevent the dashboard from being exposed on HTTP.
+- Use strong and hashed passwords for `basicAuth`.
+- Regularly monitor and update Traefik to the latest stable version.
